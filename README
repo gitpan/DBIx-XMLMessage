@@ -1,0 +1,100 @@
+0.01  August 2000
+    - First cut
+----------------------------------------------------------------
+
+NAME
+
+    DBIx::XMLMessage - XML Message exchange between DBI data sources
+
+SYNOPSIS
+
+OUTBOUND MESSAGE
+
+    use DBI;
+    use DBIx::XMLMessage;
+
+    # Template string
+    my $tpl_str =<< "_EOT_";
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'>
+    <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+    <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+    <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
+        BLTIN="fix_gmdatetime" />
+    <CHILD NAME='SysUsers' TABLE='sysusers'>
+        <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserName' EXPR='name' />
+    </CHILD>
+    </TEMPLATE>
+    _EOT_
+    my $msg = new DBIx::XMLMessage ('TemplateString' => $tpl_str);
+    my $ghash = { 'OBJECT_ID' => [ 1, 2 ] };
+    my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
+    $msg->rexec ($dbh, $ghash);
+
+    print "\n\n", $msg->output_xml(0,0);
+    print "\n\n", $msg->output_xml(0,1);
+
+
+INBOUND MESSAGE
+
+    #!/usr/bin/perl
+    use DBI;
+    use DBIx::XMLMessage;
+
+    my $template_xml =<< "_EOD1_";
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
+        ACTION='SAVE'>
+    <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+    <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+    <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
+        BLTIN="fix_gmdatetime" />
+    <CHILD NAME='SysUsers' TABLE='sysusers'>
+        <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserName' EXPR='name' />
+    </CHILD>
+    </TEMPLATE>
+    _EOD1_
+
+    my $message_xml =<< "_EOD2_";
+    <?xml version="1.0" encoding="UTF-8"?>
+    <SysLogins>
+    <LoginId>1</LoginId>
+    <PasswordDate>1999/08/17 08:31</PasswordDate>
+    <SysUsers>
+        <UserId>1</UserId>
+        <UserName>sa</UserName>
+    </SysUsers>
+    </SysLogins>
+    _EOD2_
+
+    my $xmlmsg = new DBIx::XMLMessage ('TemplateString' => $template_xml);
+    my $msgtype = $xmlmsg->input_xml($message_xml);
+    my $ghash = {
+        'OBJECT_ID' => [ 1 ]
+    };
+    $xmlmsg->populate_objects ($ghash);
+
+    my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
+    $xmlmsg->rexec ($dbh, $ghash);
+    print $xmlmsg->output_message();
+
+
+DESCRIPTION
+
+    The package maintains simple XML templates that describe object structure.
+
+    The package is capable of retrieving these objects from the DBI data source
+    and formatting them. Also, inbound messages can be processed according to
+    the same kind of templates and the database is updated accordingly.
+
+
+AUTHORS
+
+    Andrei Nossov <F<andrein@andrein.com>> wrote version 0.01
+
+    This library is free software; you can redistribute it and/or
+    modify it under the same terms as Perl itself.
