@@ -1,7 +1,7 @@
 #
 #   DBIx::XMLMessage
 #
-#   Copyright (c) 2000 Andrei Nossov. All rights reserved.
+#   Copyright (c) 2000-2001 Andrei Nossov. All rights reserved.
 #   This program is free software; you can redistribute it and/or
 #   modify it under the same terms as Perl itself.
 # _________________________________________________________________________
@@ -9,6 +9,7 @@
 #
 #   Version Date    Author          Notes
 # _________________________________________________________________________
+#   0.03    3/01    Andrei Nossov   Root compound key bug fixed
 #   0.03    11/00   Andrei Nossov   Bug fixes, more documentation
 #   0.02    10/00   Andrei Nossov   Documentation improved
 #   0.01    8/00    Andrei Nossov   First cut
@@ -32,7 +33,7 @@ use Carp;
 use XML::Parser;
 use vars qw (@ISA %EXPORT_TAGS $TRACELEVEL $PACKAGE $VERSION);
 $PACKAGE = 'DBIx::XMLMessage';
-$VERSION  = '0.03';
+$VERSION  = '0.04';
 $TRACELEVEL = 0;        # Don't trace by default
 @ISA = qw ( Exporter );
 
@@ -107,7 +108,7 @@ sub error {
 sub trace {
     my $self = shift;
 
-    if ( $TRACELEVEL ) {
+    if ( $TRACELEVEL || defined $self->{_OnDebug} ) {
         if ( $self->{_OnTrace} ) {
             &{$self->{_OnTrace}} (@_);
         } else {
@@ -526,6 +527,8 @@ sub get_keyval {
     if ( !$tag )  {
         $self->error ("Internal error: Key $node->{NAME} has no parent");
     }
+    # Find the corresponding name a level up
+    $kname = $node->{PARENT_NAME} ? $node->{PARENT_NAME} : $node->{NAME};
     # Check itself
     # Keys are stored in a 2-dimensional array:
     # _____________________________________________________________________
@@ -539,9 +542,10 @@ sub get_keyval {
     #   Thus, inix 0 should be always there and it's fake..
     #
     if ( $tag->{_KEYS} && $tag->{_KEYS}->[$inix]
-            && defined $tag->{_KEYS}->[$inix]->[$resix] ) {
-        $val = $self->format_value ($node,$tag->{_KEYS}->[$inix]->[$resix]);
-        $self->debug ("    get_keyval = $val\n");
+            && defined $tag->{_KEYS}->[$inix]->[$resix]
+            && defined $tag->{_KEYS}->[$inix]->[$resix]->{$kname} ) {
+        $val = $self->format_value ($node,$tag->{_KEYS}->[$inix]->[$resix]->{$kname});
+        $self->debug ("    *get_keyval = $val\n");
         return $val;
     }
     # Find the tag's parent (all but TEMPLATE should have)
@@ -552,8 +556,6 @@ sub get_keyval {
     }
     # Try to get from input values and parent results
     my $val1 = $self->get_inval ($tag, $node->{NAME}, $inix);
-    # Find the corresponding name a level up
-    $kname = $node->{PARENT_NAME} ? $node->{PARENT_NAME} : $node->{NAME};
     # Get the parent result
     my $val2 = $self->get_resval ($tag, $kname, $resix);
     # Compare values
@@ -572,7 +574,7 @@ sub get_keyval {
         $val = &get_hashval ($href, $kname, $resix);
     }
     if ( defined $val ) {
-        $tag->{_KEYS}->[$inix]->[$resix] = $val;
+        $tag->{_KEYS}->[$inix]->[$resix]->{$kname} = $val;
     }
     $val = (defined $val) ? $self->format_value($node,$val) : undef;
     $self->debug ("    get_keyval = $val\n");

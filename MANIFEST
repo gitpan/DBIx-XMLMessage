@@ -4,3 +4,4 @@ README
 XMLMessage.pm
 XMLMessage.html
 t/nodbh.t
+t/sybase.t

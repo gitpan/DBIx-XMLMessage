@@ -9,6 +9,7 @@ Modification log
 --------------------------------------------------------------------------------
 Version  Date     Author         Notes
 -------- -------- -------------- -----------------------------------------------
+   0.04  3/01     Andrei Nossov  Root compound key bug fixed
    0.03  11/00    Andrei Nossov  Bug fixes, more documentation
    0.02  10/00    Andrei Nossov  Documentation improved
    0.01  8/00     Andrei Nossov  First cut
