@@ -9,7 +9,7 @@
 #
 #   Version Date    Author          Notes
 # _________________________________________________________________________
-#   0.03    3/01    Andrei Nossov   Root compound key bug fixed
+#   0.04    3/01    Andrei Nossov   Root compound key bug fixed
 #   0.03    11/00   Andrei Nossov   Bug fixes, more documentation
 #   0.02    10/00   Andrei Nossov   Documentation improved
 #   0.01    8/00    Andrei Nossov   First cut
@@ -49,7 +49,7 @@ sub new {
     my $self = bless {}, $class;
 
     # Check if the external code references are correct
-    # So far have: _OnError, _OnTrace, _OnDebug
+    # So far have: _OnError, _OnTrace
     foreach (keys %args) {
         if ( /^_On/ ) {     # Should be a CODE reference
             if ( (ref $args{$_}) ne 'CODE' ) {
@@ -108,26 +108,13 @@ sub error {
 sub trace {
     my $self = shift;
 
-    if ( $TRACELEVEL || defined $self->{_OnDebug} ) {
+    if ( $TRACELEVEL || defined $self->{_OnTrace} ) {
         if ( $self->{_OnTrace} ) {
             &{$self->{_OnTrace}} (@_);
         } else {
             print STDERR @_;
     }   }
 }   # -trace
-
-# _________________________________________________________________________
-#   debug method: invoke $self->{_OnDebug}, otherwise print to STDOUT
-#
-sub debug {
-    my $self = shift;
-
-    if ( $self->{_OnDebug} ) {
-        &{$self->{_OnDebug}} (@_);
-    } else {
-        print @_;
-    }
-}   # -debug
 
 # _________________________________________________________________________
 #   Prepare template for the message type
@@ -391,19 +378,19 @@ sub pr_tree {
     } elsif ( (ref $ref) =~ /HASH/ ) {
         # Attributes only
         foreach $el ( keys %$ref ) {
-            for ($i=0; $i<$level; $i++) { $self->debug ("  "); }
-            $self->debug ("$el = $ref->$el\n");
+            for ($i=0; $i<$level; $i++) { $self->trace ("  "); }
+            $self->trace ("$el = $ref->$el\n");
         }
     } else {
         if ( $ref ) {
-            for ($i=0; $i<$level; $i++) { $self->debug ("  "); }
+            for ($i=0; $i<$level; $i++) { $self->trace ("  "); }
             if ( $ref =~ /(.*)(\s+)$/ ) {
                 $ref = $1;
             }
             if ( $ref =~ /(.*)(\n+)$/ ) {
                 $ref = $1;
             }
-            $self->debug ("$ref\n");
+            $self->trace ("$ref\n");
         }
     }
 }   # -pr_tree
@@ -474,7 +461,7 @@ sub get_resval {
     my $name = shift;           # (COLUMN) name
     my $resix = shift || 0;     # Result set index
 
-    $self->debug ("      get_resval ($node->{NAME},$name,$resix)\n");
+    $self->trace ("      get_resval ($node->{NAME},$name,$resix)\n");
     my $papa = $node->{_PARENT_TAG} || return undef;
     my $rref = $papa->{_RESULTS} || return undef;
 
@@ -501,7 +488,7 @@ sub get_inval {
     my $name = shift;           # Name to look for
     my $ix = shift || 0;        # Input value set index
 
-    $self->debug ("      get_inval ($node->{NAME},$name,$ix)\n");
+    $self->trace ("      get_inval ($node->{NAME},$name,$ix)\n");
     my $val = $node->{_INVALUES}
             ? $node->{_INVALUES}->[$ix]
                 ? $node->{_INVALUES}->[$ix]->{$name}
@@ -545,7 +532,7 @@ sub get_keyval {
             && defined $tag->{_KEYS}->[$inix]->[$resix]
             && defined $tag->{_KEYS}->[$inix]->[$resix]->{$kname} ) {
         $val = $self->format_value ($node,$tag->{_KEYS}->[$inix]->[$resix]->{$kname});
-        $self->debug ("    *get_keyval = $val\n");
+        $self->trace ("    *get_keyval = $val\n");
         return $val;
     }
     # Find the tag's parent (all but TEMPLATE should have)
@@ -577,7 +564,7 @@ sub get_keyval {
         $tag->{_KEYS}->[$inix]->[$resix]->{$kname} = $val;
     }
     $val = (defined $val) ? $self->format_value($node,$val) : undef;
-    $self->debug ("    get_keyval = $val\n");
+    $self->trace ("    get_keyval = $val\n");
     return $val;
 
     # Should be able to have two references from two different columns
@@ -659,8 +646,8 @@ sub get_colval {
     # Look for the input value and parent result
     my $val1 = $self->get_inval ($tag, $node->{NAME}, $inix);
     my $val2 = $self->get_resval ($node, $node->{NAME}, $resix);
-    $self->debug ("    inval=$val1, resval=$val2\n");
-
+    $self->trace ("    inval=" . (defined $val1 ? $val1 : "UNDEF")
+           . ", resval=" . (defined $val2 ? $val2 : "UNDEF") . "\n");
     if ( defined $val1 && length($val1) > 0 ) {
         if ( defined $val2 && length($val2) > 0 ) {
             if ( $val1 eq $val2 ) {
@@ -705,7 +692,7 @@ sub get_colval {
                 $rc  = $sth->finish();
             } elsif ( $self->{NODBH} eq 'OK' ) {
                 # No database handle: Try hash anyway
-                $self->debug ("Trying to get PK without database handle");
+                $self->trace ("Trying to get PK without database handle");
                 $val = &get_hashval ($href,"$tag->{TABLE}",$inix,$resix);
             } else {
                 $self->error (
@@ -792,7 +779,7 @@ sub create_select {
     my ($el, $colexpr, $sql);
     # Construct column list, possibly with aliases
     foreach ( keys %{$node->{_COLLIST}} ) {
-        # $self->debug ("  create_select: found column $_\n");
+        # $self->trace ("  create_select: found column $_\n");
         $el = $node->{_COLLIST}->{$_};
         # Include expression if present
         if ( $el->{'EXPR'} ) {
@@ -852,7 +839,7 @@ sub create_insert {
         } else {
             my $er = "Value #($inix,$resix) for col $colexpr not found";
             # For INSERT all column values are required
-            $self->debug ("* $er\n");
+            $self->trace ("* $er\n");
             if ($node->{CARDINALITY} && $node->{CARDINALITY} eq 'OPTIONAL'){
                 return 1;
             } else {
@@ -931,7 +918,7 @@ sub create_exec {
         my $val = $self->get_parval($el,$href,$inix,$resix);
         if ( !defined $val ) {
             if ($node->{CARDINALITY} && $node->{CARDINALITY} eq 'OPTIONAL'){
-                $self->debug ("Value #($inix,$resix) for $pname not found, "
+                $self->trace ("Value #($inix,$resix) for $pname not found, "
                         ."but the tag is optional -- skipping");
                 return 1;
             } else {
@@ -979,7 +966,7 @@ sub execute_sql {
     for ( $action ) {
         if ( /INSERT/ ) {
             $sql = $self->create_insert ($node,$href,$dbh,$inix,$resix);
-            $self->debug ("SQL = $sql\n");
+            $self->trace ("SQL = $sql\n");
             $rc = $dbh->do ($sql) || croak ("$sql:\n" . $dbh->errstr);
             my %rowh = ();
             if ( $rc > 0 ) {
@@ -987,7 +974,7 @@ sub execute_sql {
             }
         } elsif ( /UPDATE/ ) {
             $sql = $self->create_update ($node,$href,$dbh,$inix,$resix);
-            $self->debug ("SQL = $sql\n");
+            $self->trace ("SQL = $sql\n");
             &{$self->{_OnPreDoSQL}} ($dbh) if ($self->{_OnPreDoSQL});
             $rc = $dbh->do ($sql) || $self->error ("$sql\n".$dbh->errstr);
             &{$self->{_OnPostDoSQL}} ($dbh) if ($self->{_OnPostDoSQL});
@@ -998,18 +985,18 @@ sub execute_sql {
         } elsif ( /SAVE/ ) {
             # Logic of the SAVE operation: update if found, insert if not
             $sql = $self->create_select ($node, $href, $dbh, $inix, $resix);
-            $self->debug ("SQL = $sql\n");
+            $self->trace ("SQL = $sql\n");
             $sth = $dbh->prepare ($sql)
                     || $self->error ("$sql\n".$dbh->errstr);
             $rc = $sth->execute() || croak ("$sql\n" . $dbh->errstr);
             if ( $row = $sth->fetchrow_hashref() ) {
                 $sql = $self->create_update ($node,$href,$dbh,$inix,$resix);
-                $self->debug ("SQL = $sql\n");
+                $self->trace ("SQL = $sql\n");
                 $rc = $dbh->do ($sql)
                         || $self->error("$sql\n".$dbh->errstr);
             } else {
                 $sql = $self->create_insert ($node,$href,$dbh,$inix,$resix);
-                $self->debug ("SQL = $sql\n");
+                $self->trace ("SQL = $sql\n");
                 $rc = $dbh->do($sql) || $self->error("$sql\n".$dbh->errstr);
             }
             my %rowh = ();
@@ -1018,7 +1005,7 @@ sub execute_sql {
             }
         } elsif ( /EXEC/ ) {
             $sql = $self->create_exec ($node, $href, $dbh, $inix, $resix);
-            $self->debug ("SQL = $sql\n");
+            $self->trace ("SQL = $sql\n");
             $sth = $dbh->prepare ($sql)
                     || $self->error ("$sql:\n" . $dbh->errstr);
             #
@@ -1033,7 +1020,7 @@ sub execute_sql {
             }
         } elsif ( /SELECT/ || !defined $_ ) {
             $sql = $self->create_select ($node, $href, $dbh, $inix, $resix);
-            $self->debug ("SQL = $sql\n");
+            $self->trace ("SQL = $sql\n");
             if ( !length $sql ) {
                 $self->error ("ERROR: Unable to create a SQL statement");
             }
@@ -1074,10 +1061,10 @@ sub process_result {
         if ( !defined $results->{$colname} )  {
             $val = $self->get_colval ($el, $dbh, $href, $inix, $resix);
             # De-format default values..
-            if ( $val =~ /^\'(.*)\'$/ ) {
+            if ( defined $val && $val =~ /^\'(.*)\'$/ ) {
                 $val = $1;
                 $val =~ s/\'\'/'/g;
-            } elsif ( $val =~ /^\"(.*)\"$/ ) {
+            } elsif ( defined $val &&  $val =~ /^\"(.*)\"$/ ) {
                 $val = $1;
                 $val =~ s/\"\"/"/g;
             }
@@ -1088,7 +1075,7 @@ sub process_result {
     }   }
     # Now look from the results' perspective
     foreach $colname ( keys %$results ) {
-        $results->{$colname} =~ s/\s*$//;
+        $results->{$colname} =~ s/\s*$// if (defined $results->{$colname});
         my $col = $node->{_COLLIST}->{$colname};
         if ( !$col )  {  # Column does not exist
             # Should we tolerate undefined results?
@@ -1116,10 +1103,10 @@ sub process_result {
         if ( $rescopy->{$colname} &&
                 $node->{_COLLIST}->{$colname}->{BLTIN} ) { # Builtin
             my $bltin = $node->{_COLLIST}->{$colname}->{BLTIN};
-            $self->debug ("BUILTIN func: $bltin\n");
+            $self->trace ("BUILTIN func: $bltin\n");
             my $cmd = '$rescopy->{$colname} = &' . $bltin . ';';
             @_ = ($self,$node,$rescopy->{$colname});
-            $self->debug ("BUILTIN: $cmd\n");
+            $self->trace ("BUILTIN: $cmd\n");
             eval $cmd;
             $self->error("Error in BUILT-IN $bltin of $colname: $@") if($@);
         }
@@ -1139,7 +1126,7 @@ sub exec {
     my $dbh = shift;    # Database handle
     my $href = shift;   # External hash reference for parameters
 
-    $self->debug ("\n  exec $node->{NAME}\n");
+    $self->trace ("\n  exec $node->{NAME}\n");
     my $success = 1;
     my $papa = $node->{_PARENT_TAG};
 
@@ -1161,7 +1148,7 @@ sub exec {
 
     my $nval = $node->{_INVALUES} ? scalar @{$node->{_INVALUES}} : 0;
     my $inix = 0;
-    $self->debug ("  nval = $nval\n");
+    $self->trace ("  nval = $nval\n");
     do {    # Execute once with no input values
         for ( my $resix=0; $resix<$nres; $resix++ ) {
             # But not without results
@@ -1410,7 +1397,7 @@ sub fix_gmdatetime {
 
 
 # _________________________________________________________________________
-#   SQLElement Prototype
+#   Tag Prototype
 #
 package DBIx::XMLMessage::Element;
 
@@ -1425,7 +1412,7 @@ Exporter::export_ok_tags ('elements');
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: TEMPLATE
+#   Tag TEMPLATE
 #
 package DBIx::XMLMessage::TEMPLATE;
 
@@ -1455,7 +1442,7 @@ sub new {
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: KEY
+#   Tag KEY
 #
 package DBIx::XMLMessage::KEY;
 use vars qw (@ISA %EXPORT_TAGS @rattrs @oattrs @rkids @okids);
@@ -1470,7 +1457,7 @@ sub new {
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: COLUMN
+#   Tag COLUMN
 #
 package DBIx::XMLMessage::COLUMN;
 use vars qw (@ISA %EXPORT_TAGS @rattrs @oattrs @rkids @okids);
@@ -1499,7 +1486,7 @@ sub new {
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: REFERENCE
+#   Tag REFERENCE
 #
 package DBIx::XMLMessage::REFERENCE;
 use vars qw (@ISA %EXPORT_TAGS @rattrs @oattrs @rkids @okids);
@@ -1530,7 +1517,7 @@ sub new {
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: CHILD
+#   Tag CHILD
 #
 package DBIx::XMLMessage::CHILD;
 use vars qw (@ISA %EXPORT_TAGS @rattrs @oattrs @rkids @okids);
@@ -1562,7 +1549,7 @@ sub new {
 1;
 
 #__________________________________________________________________________
-#   SQLElement Tag: PARAMETER
+#   Tag PARAMETER
 #
 package DBIx::XMLMessage::PARAMETER;
 use vars qw (@ISA %EXPORT_TAGS @rattrs @oattrs @rkids @okids);
@@ -1986,7 +1973,6 @@ where clause.
     my $xmsg = new DBIx::XMLMessage (
         [ _OnError => $err_coderef, ]
         [ _OnTrace => $trace_coderef, ]
-        [ _OnDebug => $debug_coderef, ]
         [ Handlers => $expat_handlers_hashref, ]
         [ TemplateString => $xml_template_as_a_string, ]
         [ TemplateFile => $xml_template_file_name, ]

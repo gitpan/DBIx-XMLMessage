@@ -4,11 +4,15 @@ INSTALLATION:
     $ make
     $ make install
 
+NOTE: There is no test against a "live" datasource anymore. Please edit the
+      sybase.t.removed and move it to t/sybase.t if you'd like to perform one.
+
 
 Modification log
 --------------------------------------------------------------------------------
 Version  Date     Author         Notes
 -------- -------- -------------- -----------------------------------------------
+   0.05  9/01     Andrei Nossov  Removed $self->debug() and test against Sybase
    0.04  3/01     Andrei Nossov  Root compound key bug fixed
    0.03  11/00    Andrei Nossov  Bug fixes, more documentation
    0.02  10/00    Andrei Nossov  Documentation improved
@@ -671,6 +675,8 @@ printing or whatever manupulations seem appropriate.
 
 SEE ALSO
 
+    DBI
+    DBD
     XML::Parser
     XML::Parser::Expat
 
@@ -686,3 +692,4 @@ AUTHORS
 
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself
+
