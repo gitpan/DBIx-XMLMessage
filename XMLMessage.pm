@@ -8,9 +8,10 @@
 # _________________________________________________________________________
 #   Modifications Log
 #
-#   Date    Author          Notes
+#   Version Date    Author          Notes
 # _________________________________________________________________________
-#   8/00    Andrei Nossov   First cut
+#   0.02    10/00   Andrei Nossov   Documentation improved
+#   0.01    8/00    Andrei Nossov   First cut
 # _________________________________________________________________________
 
 use Exporter;
@@ -29,7 +30,7 @@ use Carp;
 use XML::Parser;
 use vars qw (@ISA %EXPORT_TAGS $TRACELEVEL $PACKAGE $VERSION);
 $PACKAGE = 'DBIx::XMLMessage';
-$VERSION  = '0.01';     # Boy, am I a modest guy..
+$VERSION  = '0.02';
 $TRACELEVEL = 0;        # Don't trace by default
 @ISA = qw ( Exporter );
 
@@ -1609,6 +1610,7 @@ print "\n\n", $msg->output_xml(0,1);
 =head2 INBOUND MESSAGE
 
 #!/usr/bin/perl
+
 use DBI;
 use DBIx::XMLMessage;
 
@@ -1657,14 +1659,172 @@ print $xmlmsg->output_message();
 
 The package maintains simple XML templates that describe object structure.
 
-The package is capable of retrieving these objects from the DBI data source
-and formatting them. Also, inbound messages can be processed according to
-the same kind of templates and the database is updated accordingly.
+The package is capable of generating SQL statements based on these templates
+and executing them against DBI data sources. After executing the SQL, the
+package formats the data results into XML strings. E.g. the following simple
+template
 
+<TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
+    ACTION='SAVE'>
+  <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+  <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+</TEMPLATE>
+
+being executed with key value = 1, will be tranlated into this SQL:
+
+SELECT suid LoginId FROM syslogins where suid = 1
+
+and the result will be formatted into this XML string:
+
+<SysLogins>
+    <LoginId>1<LoginId>
+</SysLogins>
+
+Inbound messages can be processed according to the same kind of templates
+and the database is updated accordingly. Templates are capable of defining
+the SQL operators, plus new SAVE operation which is basically a combination
+of SELECT and either INSERT or UPDATE depending on whether the record was
+found by the compound key value or not.
+
+=head1 SALES PITCH
+
+This package allows for objects exchange between different databases. They
+could be from different vendors, as long as they both have DBD drivers. In
+certain cases it is even possible to exchange objects between databases with
+different data models. Publishing of databases on the web could
+potentially be one of the applications as well.
+
+=head1 TEMPLATE TAGS
+
+=head2 TEMPLATE
+
+This is manadatory top-level tag. It can correspond to a certain table and
+be processed just like table-level REFERENCE and CHILD attributes described
+below. Some of TEMPLATE attributes are related to the whole template (e.g.
+TYPE or VERSION) while others desribe the table ti's based on (e.g. TABLE)
+
+If the TABLE attribute is defined, the generated SQL is going to run against
+some table. Otherwise a SQL with no table will be generated. This only makes
+sense for outbound messages and only possible on certain engines, like
+Sybase. Also, the immediate child columns should contain constants only for
+apparent reasons.
+
+=head2 REFERENCE
+
+REFERENCE is a table-level tag. It's meant to represent a single record from
+another table that's retrieved by unique key. E.g. if my current table is
+EMPL then DEPARTMENT would be a REFERENCE since employee can have no more
+than one departament.
+
+=head2 CHILD
+
+This tag meant to represent a number of child records usually retrieved by
+a foreign key value (probably primary key of the current table). Right now
+there's no difference in processing between CHILD and REFERENCE, but it may
+appear in the future releases.
+
+=head2 COLUMN
+
+This tag is pretty self-explanatory. Each COLUMN tag will appear on the
+SELECT, INSERT or UPDATE list of the generated SQL.
+
+=head2 KEY
+
+Key represents linkage of this table's records to the parent table. All
+KEY's will appear on the WHERE clause as AND components. This way of linkage
+is typical for most of relational systems and considered to be a good style.
+I guess it shouldn't be much of a restriction anyway. If it gets that, you
+could try tweak up the WHERE_CLAUSE attribute..
+
+=head2 PARAMETER
+
+This tag represents a parameter that will be passsed to a stored procedure.
+Currently, only Sybase-style stored procedures are supported. Fixes are
+welcome..
+
+=head1 METHODS
+
+=head2 new
+
+    my $xmsg = new DBIx::XMLMessage (
+        [ _OnError => $err_coderef, ]
+        [ _OnTrace => $trace_coderef, ]
+        [ _OnDebug => $debug_coderef, ]
+        [ Handlers => $expat_handlers_hashref, ]
+        [ TemplateString => $xml_template_as_a_string, ]
+        [ TemplateFile => $xml_template_file_name, ]
+    )
+
+You can specify either TemplateString or TemplateFile, but not both. If any
+of those specified, the template will be parsed.
+
+=head2 set_handlers
+
+    $xmsg->set_handlers ($expat_handlers_hashref)
+
+Set additional expat handlers, see XML::Parser::Expat. Normally you won't
+use this. The only case I could think of is processing of encoding..
+
+=head2 prepare_template
+
+    $xmsg->prepare_template ($template_xml_string)
+
+This method can be invoked if the template was not specified in the 'new'
+method invocation.
+
+=head2 prepare_template_from_file
+
+    $xmsg->prepare_template_from_file ($template_file_name)
+
+Same as above, but template is read from file here.
+
+=head2 input_xml
+
+    $xmsg->input_xml ($inbound_xml_message_content)
+
+Parse an inbound XML message. The values form this message will be used to
+fill in COLUMNS and PARAMETERS. The structure of this message should comply
+with template. Uses Tree parsing style.
+
+=head2 input_xml_file
+
+    $xmsg->input_xml_file ($inbound_xml_message_file_name)
+
+Same as above, but the XML message is read from a file.
+
+=head2 populate_objects
+
+    $xmsg->populate_objects ($global_hash_ref [, $matching_object
+        [, $tag_name [, $tag_content, [$parameter_index]]]])
+
+This method is trying to stuff the existing template with the inbound
+message previously parsed by one of the 'input_xml' methods. The only
+mandatory attribute is global hash reference, which has to contain key
+values for the topmost tag TEMPLATE.
+
+=head2 rexec
+
+    $xmsg->rexec ($dbh, $global_hash_ref)
+
+This method is running the created query against a DBI/DBD source and fills
+in the template with results in order to make them available for subsequent
+output_message call. In case of INSERT/UPDATE operations only key values
+will be filled in.
+
+=head2 output_message
+
+This method returns a string with query results in XML format suitable for
+printing or whatever manupulations seem appropriate.
+
+
+=head1 SEE ALSO
+
+XML::Parser
+XML::Parser::Expat
 
 =head1 AUTHORS
 
-  Andrei Nossov <F<andrein@andrein.com>> wrote version 0.01
+  Andrei Nossov <F<andrein@andrein.com>>
 
 This library is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
