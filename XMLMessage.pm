@@ -1,4 +1,3 @@
-#!/home/vantive/perl -w
 #
 #   DBIx::XMLMessage
 #
@@ -10,9 +9,12 @@
 #
 #   Version Date    Author          Notes
 # _________________________________________________________________________
+#   0.03    11/00   Andrei Nossov   Bug fixes, more documentation
 #   0.02    10/00   Andrei Nossov   Documentation improved
 #   0.01    8/00    Andrei Nossov   First cut
 # _________________________________________________________________________
+
+require 5.003;
 
 use Exporter;
 use HTML::Entities ();
@@ -22,7 +24,7 @@ use Data::Dumper;
 use strict;
 
 # _________________________________________________________________________
-#   SQLMessage: head package
+#   XMLMessage: head package
 #
 package DBIx::XMLMessage;
 
@@ -30,7 +32,7 @@ use Carp;
 use XML::Parser;
 use vars qw (@ISA %EXPORT_TAGS $TRACELEVEL $PACKAGE $VERSION);
 $PACKAGE = 'DBIx::XMLMessage';
-$VERSION  = '0.02';
+$VERSION  = '0.03';
 $TRACELEVEL = 0;        # Don't trace by default
 @ISA = qw ( Exporter );
 
@@ -86,7 +88,7 @@ sub set_handlers {
 }
 
 # _________________________________________________________________________
-#   Error method: invoke $self->{_OnError}, otherwise die
+#   Error method: invoke $self->{_OnError} and die, otherwise croak
 #
 sub error {
     my $self = shift;
@@ -105,11 +107,12 @@ sub error {
 sub trace {
     my $self = shift;
 
-    if ( $self->{_OnTrace} ) {
-        &{$self->{_OnTrace}} (@_);
-    } else {
-        print STDERR @_;
-    }
+    if ( $TRACELEVEL ) {
+        if ( $self->{_OnTrace} ) {
+            &{$self->{_OnTrace}} (@_);
+        } else {
+            print STDERR @_;
+    }   }
 }   # -trace
 
 # _________________________________________________________________________
@@ -153,7 +156,7 @@ sub prepare_template {
 #   input_xml and SQLM_TEMPLATE_DIR environment variable
 #
 sub prepare_template_from_file {
-    my $self = shift;   # SQLMessage
+    my $self = shift;   # XMLMessage
     my $fname = shift;  # Template file name
 
     if ( ! defined $fname ) {   # Full filename expected
@@ -269,7 +272,7 @@ sub input_xml_file {
 # FIXME: Buggy..
 #
 sub populate_objects {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $ghash = shift;      # Global hash
     my $obj = shift;        # The matching object for this tag
     my $tag = shift;        # The tag name
@@ -350,7 +353,7 @@ sub populate_objects {
                     && $obj->{TOLERANCE} eq 'REJECT' ) {# REJECT
                 $self->error ("$obj->{NAME} doesn't allow child $kid");
             } else {                                    # IGNORE
-                $self->message ("$kid kid not found in the template"
+                $self->trace ("$kid kid not found in the template"
                         . " for $obj->{NAME}, ignoring");
     }   }   }   }
             #<<<<<<<<
@@ -375,7 +378,7 @@ sub populate_objects {
 #   Debugging subroutine: Print the tree
 #
 sub pr_tree {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $ref = shift;        # Root node of this subtree
     my $level = shift || 0; # Level of this root node
     my ($el, $i);
@@ -408,7 +411,7 @@ sub pr_tree {
 #   Create the necessary internal structures
 #
 sub mk_refs {
-    my $self = shift;   # SQLMessage
+    my $self = shift;   # XMLMessage
     my $root = shift;   # Element
 
     foreach my $el (@{$root->{'Kids'}}) {
@@ -465,7 +468,7 @@ sub get_hashval {
 #   Get the *parent* result value #n
 #
 sub get_resval {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE | REFERENCE | CHILD
     my $name = shift;           # (COLUMN) name
     my $resix = shift || 0;     # Result set index
@@ -492,7 +495,7 @@ sub get_resval {
 #   Get the parameter (input value) #n
 #
 sub get_inval {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE|CHILD|REFERENCE
     my $name = shift;           # Name to look for
     my $ix = shift || 0;        # Input value set index
@@ -510,7 +513,7 @@ sub get_inval {
 #   Get the key value #($inix,$resix)
 #
 sub get_keyval {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # Key reference
     my $href = shift;           # External hash reference
     my $inix = shift || 0;      # Input set index
@@ -584,7 +587,7 @@ sub get_keyval {
 #   Get the parameter value #ix
 #
 sub get_parval {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # PARAMETER
     my $href = shift;           # External hash reference
     my $inix = shift || 0;      # Input value set index, real starts at 1
@@ -629,7 +632,7 @@ sub get_parval {
 #   Get and format the column value #($inix,$resix)
 #
 sub get_colval {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $node = shift;       # COLUMN
     my $dbh = shift;        # Database handle
     my $href = shift;       # External hash reference
@@ -733,7 +736,7 @@ sub format_value {
 #   Create the WHERE clause for SELECT/UPDATE
 #
 sub create_where {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE|CHILD|REFERENCE
     my $href = shift;           # Global hash reference
     my $inix = shift || 0;      # Key set index
@@ -776,7 +779,7 @@ sub create_where {
 #   Construct SELECT statement
 #
 sub create_select {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $node = shift;       # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;        # Database handle
     my $href = shift;       # Global hash reference
@@ -820,7 +823,7 @@ sub create_select {
 #   Construct INSERT statement
 #
 sub create_insert {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $node = shift;       # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;        # Database handle
     my $href = shift;       # Global hash reference
@@ -866,7 +869,7 @@ sub create_insert {
 #   Construct UPDATE statement
 #
 sub create_update {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $node = shift;       # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;        # Database handle
     my $href = shift;       # Global hash reference
@@ -906,17 +909,20 @@ sub create_update {
 #   Construct EXEC statement (only works with Sybase/SQL Server I suspect)
 #
 sub create_exec {
-    my $self = shift;       # SQLMessage
+    my $self = shift;       # XMLMessage
     my $node = shift;       # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;        # Database handle
     my $href = shift;       # Global hash reference
     my $inix = shift || 0;  # Input value set index
     my $resix = shift || 0; # Parent result set index
 
-    my ($el, $val, $sql);
+    my ($el, $val, $sql, $dbdriver);
     if ( !defined $node->{PROC} )  {
         $self->error ("$node->{NAME}: PROC required where ACTION is EXEC");
     }
+    # Retrieve the driver name
+    # $dbdriver = $dbh->{Driver}->{Name};
+
     # Collect the parameters
     foreach my $pname ( keys %{$node->{_PARLIST}} ) {
         my $el = $node->{_PARLIST}->{$pname};
@@ -927,15 +933,16 @@ sub create_exec {
                         ."but the tag is optional -- skipping");
                 return 1;
             } else {
-                $self->error ("$el->{NAME}: $pname value #($inix,$resix) not found");
+                $self->error (
+                    "$el->{NAME}: $pname value #($inix,$resix) not found");
             }
         } else {
             $sql .= " \@$el->{NAME} = $val,"
     }   }
     if ( $sql ) {
         chop ($sql);
-        $sql = "EXEC $node->{PROC} $sql";
     }
+    $sql = "EXEC $node->{PROC} $sql";
     return $sql;
 }   # -create_exec
 
@@ -943,7 +950,7 @@ sub create_exec {
 #   Execute the SQL for one index pair
 #
 sub execute_sql {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;            # Database handle
     my $href = shift;           # External hash reference for parameters
@@ -1020,7 +1027,7 @@ sub execute_sql {
             #
             $rc = $sth->execute() || $self->error ("$sql:\n".$dbh->errstr);
             while ( $row = $sth->fetchrow_hashref() ) {
-                $self->process_result ($dbh, $row, $href, $inix, $resix);
+                $self->process_result ($node,$dbh,$row,$href,$inix,$resix);
             }
         } elsif ( /SELECT/ || !defined $_ ) {
             $sql = $self->create_select ($node, $href, $dbh, $inix, $resix);
@@ -1049,7 +1056,7 @@ sub execute_sql {
 #       ->{_RESIX}
 #
 sub process_result {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;            # DBI database handle
     my $results = shift;        # Result row hash reference
@@ -1108,8 +1115,8 @@ sub process_result {
                 $node->{_COLLIST}->{$colname}->{BLTIN} ) { # Builtin
             my $bltin = $node->{_COLLIST}->{$colname}->{BLTIN};
             $self->debug ("BUILTIN func: $bltin\n");
-            @_ = ($self,$node,$rescopy->{$colname});
             my $cmd = '$rescopy->{$colname} = &' . $bltin . ';';
+            @_ = ($self,$node,$rescopy->{$colname});
             $self->debug ("BUILTIN: $cmd\n");
             eval $cmd;
             $self->error("Error in BUILT-IN $bltin of $colname: $@") if($@);
@@ -1125,7 +1132,7 @@ sub process_result {
 #   Execute the SQL for all parent results and input values
 #
 sub exec {
-    my $self = shift;   # SQLMessage
+    my $self = shift;   # XMLMessage
     my $node = shift;   # TEMPLATE|CHILD|REFERENCE
     my $dbh = shift;    # Database handle
     my $href = shift;   # External hash reference for parameters
@@ -1136,14 +1143,18 @@ sub exec {
 
     my $nres;
     if ( $papa ) {
-       $nres = $papa->{_RESULTS} ? scalar @{$papa->{_RESULTS}} : 0;
+        $nres = $papa->{_RESULTS} ? scalar @{$papa->{_RESULTS}} : 0;
     } else {
-       # No parent tag -- pick up the key #0 and count number of values.
-       my @keynames = keys %{$node->{_KEYLIST}};
-       my $key0 = $node->{_KEYLIST}->{$keynames[0]}->{PARENT_NAME}
-               ? $node->{_KEYLIST}->{$keynames[0]}->{PARENT_NAME}
-               : $keynames[0];
-       $nres = scalar @{$href->{$key0}};
+        # No parent tag -- pick up the key #0 and count number of values.
+        my @keynames = defined $node->{_KEYLIST}
+                ? keys %{$node->{_KEYLIST}} : ();
+        my $key0 = scalar @keynames
+                ? $node->{_KEYLIST}->{$keynames[0]}->{PARENT_NAME}
+                        ? $node->{_KEYLIST}->{$keynames[0]}->{PARENT_NAME}
+                        : $keynames[0]
+                : undef;
+        $nres = defined $key0
+                ? scalar @{$href->{$key0}} : 1; # No keys -- execute once
     }
 
     my $nval = $node->{_INVALUES} ? scalar @{$node->{_INVALUES}} : 0;
@@ -1163,7 +1174,7 @@ sub exec {
 #   Recursively execute SQL statements for all
 #
 sub rexec {
-    my $self = shift;   # SQLMessage
+    my $self = shift;   # XMLMessage
     my $dbh = shift;    # database handle
     my $href = shift;   # External hash reference for parameters
     my $node = shift;   # TEMPLATE|CHILD|REFERENCE
@@ -1191,7 +1202,7 @@ sub rexec {
 #   Output the message
 #
 sub output_message {
-    my $self = shift;   # SQLMessage
+    my $self = shift;   # XMLMessage
 
     #if ( $self->{TYPE} eq 'XML' ) {
         return $self->output_xml();
@@ -1207,7 +1218,7 @@ sub output_message {
 #
 #
 sub output_xml {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $level = shift || 0;     # Level
     my $resix = shift || 0;     # Parent result set index
     my $node = shift || $self->{_Template}; # TEMPLATE|CHILD|REFERENCE
@@ -1303,7 +1314,7 @@ sub t_bltin {
 #   Fix the GMTIME values
 #
 sub fix_gmdatetime {
-    my $self = shift;           # SQLMessage
+    my $self = shift;           # XMLMessage
     my $node = shift;           # TEMPLATE | CHILD | REFERENCE
     my $val = shift || undef;
 
@@ -1580,79 +1591,80 @@ DBIx::XMLMessage - XML Message exchange between DBI data sources
 
 =head2 OUTBOUND MESSAGE
 
-use DBI;
-use DBIx::XMLMessage;
+    #!/usr/bin/perl
 
-# Template string
-my $tpl_str =<< "_EOT_";
-<?xml version="1.0" encoding="UTF-8" ?>
-<TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'>
-  <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
-  <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
-  <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
-      BLTIN="fix_gmdatetime" />
-  <CHILD NAME='SysUsers' TABLE='sysusers'>
-    <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
-    <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
-    <COLUMN NAME='UserName' EXPR='name' />
-  </CHILD>
-</TEMPLATE>
-_EOT_
-my $msg = new DBIx::XMLMessage ('TemplateString' => $tpl_str);
-my $ghash = { 'OBJECT_ID' => [ 1, 2 ] };
-my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
-$msg->rexec ($dbh, $ghash);
+    use DBI;
+    use DBIx::XMLMessage;
 
-print "\n\n", $msg->output_xml(0,0);
-print "\n\n", $msg->output_xml(0,1);
+    # Template string
+    my $tpl_str =<< "_EOT_";
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'>
+    <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+    <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+    <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
+        BLTIN="fix_gmdatetime" />
+    <CHILD NAME='SysUsers' TABLE='sysusers'>
+        <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserName' EXPR='name' />
+    </CHILD>
+    </TEMPLATE>
+    _EOT_
+    my $msg = new DBIx::XMLMessage ('TemplateString' => $tpl_str);
+    my $ghash = { 'OBJECT_ID' => [ 1, 2 ] };
+    my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
+    $msg->rexec ($dbh, $ghash);
+
+    print "\n\n", $msg->output_xml(0,0);
+    print "\n\n", $msg->output_xml(0,1);
 
 
 =head2 INBOUND MESSAGE
 
-#!/usr/bin/perl
+    #!/usr/bin/perl
 
-use DBI;
-use DBIx::XMLMessage;
+    use DBI;
+    use DBIx::XMLMessage;
 
-my $template_xml =<< "_EOD1_";
-<?xml version="1.0" encoding="UTF-8" ?>
-<TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
-    ACTION='SAVE'>
-  <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
-  <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
-  <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
-      BLTIN="fix_gmdatetime" />
-  <CHILD NAME='SysUsers' TABLE='sysusers'>
-    <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
-    <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
-    <COLUMN NAME='UserName' EXPR='name' />
-  </CHILD>
-</TEMPLATE>
-_EOD1_
+    my $template_xml =<< "_EOD1_";
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
+        ACTION='SAVE'>
+    <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+    <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+    <COLUMN NAME='PasswordDate' EXPR='pwdate' DATATYPE='DATETIME'
+        BLTIN="fix_gmdatetime" />
+    <CHILD NAME='SysUsers' TABLE='sysusers'>
+        <KEY NAME='suid' PARENT_NAME='LoginId' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserId' EXPR='uid' DATATYPE='NUMERIC' />
+        <COLUMN NAME='UserName' EXPR='name' />
+    </CHILD>
+    </TEMPLATE>
+    _EOD1_
 
-my $message_xml =<< "_EOD2_";
-<?xml version="1.0" encoding="UTF-8"?>
-<SysLogins>
-  <LoginId>1</LoginId>
-  <PasswordDate>1999/08/17 08:31</PasswordDate>
-  <SysUsers>
-    <UserId>1</UserId>
-    <UserName>sa</UserName>
-  </SysUsers>
-</SysLogins>
-_EOD2_
+    my $message_xml =<< "_EOD2_";
+    <?xml version="1.0" encoding="UTF-8"?>
+    <SysLogins>
+    <LoginId>1</LoginId>
+    <PasswordDate>1999/08/17 08:31</PasswordDate>
+    <SysUsers>
+        <UserId>1</UserId>
+        <UserName>sa</UserName>
+    </SysUsers>
+    </SysLogins>
+    _EOD2_
 
-my $xmlmsg = new DBIx::XMLMessage ('TemplateString' => $template_xml);
-my $msgtype = $xmlmsg->input_xml($message_xml);
-my $ghash = {
-    'OBJECT_ID' => [ 1 ]
-};
-$xmlmsg->populate_objects ($ghash);
+    my $xmlmsg = new DBIx::XMLMessage ('TemplateString' => $template_xml);
+    my $msgtype = $xmlmsg->input_xml($message_xml);
+    my $ghash = {
+        'OBJECT_ID' => [ 1 ]
+    };
+    $xmlmsg->populate_objects ($ghash);
 
-my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
-$xmlmsg->rexec ($dbh, $ghash);
-print $xmlmsg->output_message();
-
+    my $dbh = DBI->connect('dbi:Sybase:server=x;database=master','sa','secret');
+    $xmlmsg->rexec ($dbh, $ghash);
+    print $xmlmsg->output_message();
 
 
 =head1 DESCRIPTION
@@ -1664,11 +1676,11 @@ and executing them against DBI data sources. After executing the SQL, the
 package formats the data results into XML strings. E.g. the following simple
 template
 
-<TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
-    ACTION='SAVE'>
-  <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
-  <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
-</TEMPLATE>
+    <TEMPLATE NAME='SysLogins' TYPE='XML' VERSION='1.0' TABLE='syslogins'
+        ACTION='SAVE'>
+    <KEY NAME='suid' DATATYPE='NUMERIC' PARENT_NAME='OBJECT_ID' />
+    <COLUMN NAME='LoginId' EXPR='suid' DATATYPE='NUMERIC' />
+    </TEMPLATE>
 
 being executed with key value = 1, will be tranlated into this SQL:
 
@@ -1676,9 +1688,9 @@ SELECT suid LoginId FROM syslogins where suid = 1
 
 and the result will be formatted into this XML string:
 
-<SysLogins>
-    <LoginId>1<LoginId>
-</SysLogins>
+    <SysLogins>
+        <LoginId>1<LoginId>
+    </SysLogins>
 
 Inbound messages can be processed according to the same kind of templates
 and the database is updated accordingly. Templates are capable of defining
@@ -1739,8 +1751,231 @@ could try tweak up the WHERE_CLAUSE attribute..
 =head2 PARAMETER
 
 This tag represents a parameter that will be passsed to a stored procedure.
-Currently, only Sybase-style stored procedures are supported. Fixes are
-welcome..
+Currently, only Sybase-style stored procedures are supported, i.e.
+
+exec proc_name @param_name = 'param_value', ...
+
+Fixes for Oracle, DB2 and Informix are welcome..
+
+
+
+=head1 TEMPLATE TAG ATTRIBUTES
+
+=head2 NAME
+
+    Applicable to:  All template tags
+    Required for:   All template tags
+
+NAME is the only required attribute for all of the template tags. The main
+purpose of it is to specify the tag name as it will appear in the resulting
+XML document. Also, depending on the template tag type (COLUMN, PARAMETER
+and KEY) it may serve as default value for EXPR discussed below. Here's a
+small example of how it works. If my column is represented in the template
+like this:
+
+    <COLUMN NAME='ObjectId' />
+
+the resulting SQL will contain
+
+    SELECT ObjectID, ...
+
+whereas if I have
+
+    <COLUMN NAME='ObjectId' EXPR='igObjectId' />
+
+it will generate the following SQL:
+
+    SELECT igObjectId ObjectID, ...
+
+I.e. in the latter example, NAME used as an alias and EXPR as a real
+database column name. The column in the first example has no alias.
+
+
+=head2 ACTION
+
+    Applicable to:  TEMPLATE, REFERENCE, CHILD
+    Required for:   None
+
+Possible values for this attibute are SELECT, INSERT, UPDATE, EXEC and SAVE.
+If action is not provided, it is assumed that t he action should be SELECT.
+The first 4 values correspond to SQL data management operators (EXEC is
+vendor-specific and represents execution of a stored procedure). The fifth
+value, SAVE, is basically a combination of SELECT and either INSERT or
+UPDATE, depending on whether the record was found by the compound key value
+or not. This often helps to avoid usage of complicated stored procedures
+with primary key generation and keep things generic and scalable. Primary
+key generation issue is addressed separately by using of the GENERATE_PK
+attribute (see below).
+
+=head2 BLTIN
+
+    Applicable to:  COLUMN
+    Required for:   None
+
+Represents a perl built-in function. before invocation of this subroutine
+the package prepares array @_ and makes it visible to the built-in function.
+The 3 arguments received by the built-in are:
+    $self   -  DBIx::XMLMessage object
+    $node   -  Correspondent DBIx::XMLMessage::COLUMN object. You
+               can use it to obtain other column attributes, e.g.
+               $node->{DATATYPE}
+    $value  -  The column value
+
+Meaning of the value depends on direction of the message, i.e. whether the
+message is inbound or outbound. In case of inbound message, this is the
+value received by the package from outside world; if the message is inbound
+then this is the value selected from database. There's one built-in function
+that comes with the package -- fix_gmdatetime. It converts date and time to
+GMT for outbound messages and from GMT to the database date/time for inbound
+messages. Just add one attribute to your datetime column:
+
+    ... BLTIN="fix_gmdatetime" ...
+
+=head2 CARDINALITY
+
+    Applicable to:   KEY, PARAMETER, REFERENCE, CHILD
+    Required for:    None
+    Possible values: REQUIRED, OPTIONAL
+    Default:         REQUIRED
+
+This parameter has different meaning for different element types. Optional
+KEYs and PARAMETERs allow to proceed execution if the value for it was not
+found at some point of execution. Optional CHILDs and REFERENCEs will be
+skipped from execution, and hence from output, if the package failed to
+collect all the key values.
+
+=head2 DATATYPE
+
+    Applicable to:   KEY, PARAMETER, COLUMN
+    Required for:    None
+    Possible values: CHAR, VARCHAR, VARCHAR2, DATE, DATETIME, NUMERIC
+    Default:         CHAR
+
+This attribute loosely corresponds to the database column type. The only
+processing difference in the core package is quoting of the non-numeric
+datatypes, particularly those containign substrings CHAR, DATE or TIME.
+The built-in fix_gmdatetime utilizes this attribute more extensively.
+
+=head2 DEBUG
+
+Recognized but not currently supported
+
+=head2 DEFAULT
+
+    Applicable to:   PARAMETER, COLUMN
+    Required for:    None
+    Possible values: Any string or number
+
+This attribute allows to provide a default value for COLUMNs and PARAMETERS.
+Please note that default values are not being formatted, so they have to
+represent the literal value. E.g. if you want to provide a string DEFAULT
+it would look somewhat like this:
+    ... DEFAULT = "'UNKNOWN'"
+
+
+=head2 EXPR
+
+    Applicable to:  All template tags
+    Required for:   None
+
+For COLUMN and KEY this attribute represents the actual database column name
+or a constant. For PARAMETER
+
+
+=head2 FACE
+
+    Applicable to:   COLUMN
+    Required for:    None
+    Possible values: ATTRIBUTE, TAG
+    Default:         TAG
+
+This attribute allows to output certain columns as attributes, as opposed
+to the default TAG-fasion output. Since it's not supported for inbound
+messages yet, usage of this feature is not recommended.
+
+
+=head2 GENERATE_PK
+
+    Applicable to:   COLUMN
+    Required for:    None
+    Possible values: HASH, SQL returning one value or name
+
+This attribute allows you to specify how to generate primary key values. You
+have 2 options here:
+
+1. You can write your own Perl function, put its reference to the global
+hash under the name of the table for which you intend to generate primary
+key values and provide the value of 'HASH' as the GENERATE_PK value
+
+2. You can put the generating SQL block/statement into the GENERATE_PK value
+
+
+=head2 HIDDEN
+
+    Applicable to:   COLUMN
+
+Indicates that the column will be excluded from the output. This attribute
+only makes sense for outbound messages.
+
+=head2 MAXROWS
+
+Currently not supported. In future, intends to limits the number of selected
+rows.
+
+=head2 PARENT_NAME
+
+    Applicable to:   KEY
+
+Indicates the name of the tag one level up to which this one tag is
+corresponding. E.g.
+
+    ...
+    <COLUMN NAME='OBJECT_ID'/>
+    <REFERENCE ...>
+        <KEY NAME='nOrderId' PARENT_NAME='OBJECT_ID'/>
+    </REFERENCE>
+
+This feature is a workaround allowing to have two columns descending from
+the same parent column at the same level. There was some other prolem it
+was helping to resolve, but I forgot what it was ;^)
+
+
+=head2 PROC
+
+    Applicable to:   TEMPLATE, REFERENCE, CHILD
+
+Used in conjunction with ACTION='PROC'. Defines the name of the stored
+procedure to invoke.
+
+=head2 RTRIMTEXT
+
+Currently not supported. The package does automatic right-trimming for all
+the character data.
+
+=head2 TABLE
+
+Name of the table against which the SQL will be run.
+
+=head2 TOLERANCE
+
+    Applicable to:   TEMPLATE, REFERENCE, CHILD
+    Possible values: IGNORE, CREATE, REJECT
+    Default:         IGNORE
+
+Allows to adjust package behaviour when SQL execution produces unexpected
+result columns. E.g. if there's a stored procedure that will return the
+results for your message, you can omit describing of all the resulting
+COLUMNS in the template and instead specify
+    ... TOLERANCE='CREATE'
+Whatever columns are returned by the stored procedure (Sybase & MS SQL) will
+be added on-the-fly and available for the output.
+
+
+=head2 WHERE_CLAUSE
+
+Additional where clause. Added as an AND component at the end of generated
+where clause.
+
 
 =head1 METHODS
 
@@ -1819,12 +2054,12 @@ printing or whatever manupulations seem appropriate.
 
 =head1 SEE ALSO
 
-XML::Parser
-XML::Parser::Expat
+    XML::Parser
+    XML::Parser::Expat
 
 =head1 AUTHORS
 
-  Andrei Nossov <F<andrein@andrein.com>>
+  Andrei Nossov <andrein@andrein.com>
 
 This library is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
